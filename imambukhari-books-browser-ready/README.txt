@@ -1,13 +1,19 @@
-PEMBARUAN: TAHUN AJARAN AKTIF DINAMIS
+PATCH: FITUR TAHUN AJARAN / KENAIKAN KELAS
 
-Perubahan:
-1. Dashboard membaca tahun ajaran aktif dari Supabase, bukan teks tetap 2026/2027.
-2. Jumlah siswa di dashboard menggunakan tahun yang sama dengan label aktif.
-3. Ringkasan penjualan menggunakan tahun aktif dari Supabase bila pemanggil tidak menentukan tahun; laporan historis tetap dapat mengirim nama tahun secara eksplisit.
+Penting: Migrasi SQL 003 harus sudah dijalankan di Supabase. Jangan jalankan ulang untuk patch ini.
 
-File yang harus menggantikan file lama di repository:
-- src/modules/dashboard/index.js
-- src/services/sales-service.js
+Unggah/ganti file berikut pada repository GitHub, mempertahankan path yang sama:
+- src/app.js
+- src/components/sidebar.js
+- src/modules/academic-years/index.js
 
-Tidak ada migrasi SQL baru. Tidak perlu mengubah data atau menjalankan SQL.
-Setelah file diganti dan di-commit ke GitHub, tunggu Netlify melakukan deploy ulang.
+Setelah commit, tunggu Netlify menyelesaikan deploy lalu lakukan hard refresh (Ctrl+F5).
+
+Fitur proses kenaikan kelas/kelulusan hanya ditampilkan untuk profil dengan role 'kepsek'.
+Jika tombol tetap tidak muncul, cek role akun lewat SQL:
+SELECT u.email, p.role, p.is_active
+FROM auth.users u JOIN public.profiles p ON p.id = u.id
+WHERE u.email = 'EMAIL_LOGIN_ANDA';
+
+Pastikan hasil role adalah 'kepsek' dan is_active = true.
+JANGAN jalankan proses kenaikan kelas di database produksi untuk sekadar tes.
