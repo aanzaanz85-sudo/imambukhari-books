@@ -2,6 +2,7 @@ import { supabase, isSupabaseConfigured } from './config/supabase.js';
 import { renderLogin } from './modules/auth/index.js';
 import { renderDashboard } from './modules/dashboard/index.js';
 import { renderStudents } from './modules/students/index.js';
+import { renderAcademicYears } from './modules/academic-years/index.js';
 import { renderPlaceholder } from './modules/placeholder.js';
 import { renderSidebar } from './components/sidebar.js';
 import { renderHeader } from './components/header.js';
@@ -65,5 +66,6 @@ async function renderPage(page) {
   document.querySelector('#page-title').textContent = pageNames[page] || 'Dashboard';
   if (page === 'dashboard') return renderDashboard();
   if (page === 'students') return renderStudents();
+  if (page === 'academic-years') return renderAcademicYears(currentProfile);
   return renderPlaceholder(page);
 }

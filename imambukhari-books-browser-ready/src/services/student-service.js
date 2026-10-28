@@ -27,12 +27,12 @@ export async function getStudents({ search = '', className = '', year = '', stat
   const activeYear = year || (await getActiveAcademicYear()).name;
   let query = supabase
     .from('student_enrollments')
-    .select('id, student_id, class_id, academic_year_id, enrollment_status, created_at, students!inner(id,full_name,gender,is_active), classes!inner(id,name,grade,section), academic_years!inner(id,name)')
-    .eq('academic_years.name', activeYear);
+    .select('id, student_id, class_id, academic_year_id, enrollment_status, created_at, students!inner(id,full_name,gender,is_active), classes!inner(id,name,grade,section), academic_years!inner(id,name)');
   if (status === 'inactive') {
+    // Graduates and transferred students may belong to a prior year, so do not restrict to the active year.
     query = query.eq('students.is_active', false).in('enrollment_status', ['transferred', 'graduated', 'left']);
   } else {
-    query = query.eq('enrollment_status', 'active').eq('students.is_active', true);
+    query = query.eq('academic_years.name', activeYear).eq('enrollment_status', 'active').eq('students.is_active', true);
   }
   if (className) query = query.eq('classes.name', className);
   const { data, error } = await query;
@@ -108,6 +108,13 @@ export async function reactivateStudent({ studentId, className, reason }) {
     p_reason: reason.trim()
   });
   if (error) throw error;
+}
+
+
+export async function importStudentsBatch(rows) {
+  const { data, error } = await supabase.rpc('import_students_batch', { p_rows: rows });
+  if (error) throw error;
+  return data;
 }
 
 export async function getStudentCounts(year = '') {

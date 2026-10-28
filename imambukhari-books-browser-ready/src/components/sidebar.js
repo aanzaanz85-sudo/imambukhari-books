@@ -1,6 +1,7 @@
 const items = [
   ['dashboard', '⌂', 'Dashboard'],
   ['students', '♙', 'Data Siswa'],
+  ['academic-years', '▦', 'Tahun Ajaran'],
   ['books', '▤', 'Katalog Buku'],
   ['inventory', '▦', 'Persediaan'],
   ['bundles', '▧', 'Paket Buku'],

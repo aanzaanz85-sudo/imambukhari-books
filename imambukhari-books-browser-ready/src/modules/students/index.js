@@ -1,16 +1,17 @@
-import { getStudents, getClassOptions, getActiveAcademicYear, createStudent, updateStudent, transferStudentClass, markStudentDeparture, reactivateStudent } from '../../services/student-service.js';
+import { getStudents, getClassOptions, getActiveAcademicYear, createStudent, updateStudent, transferStudentClass, markStudentDeparture, reactivateStudent, importStudentsBatch } from '../../services/student-service.js';
 import { renderTable } from '../../components/table.js';
 import { notify } from '../../components/notifications.js';
 import { showModal, closeModal } from '../../components/modal.js';
 import { exportRowsToXlsx } from '../../utils/export.js';
 import { escapeHtml } from '../../utils/validation.js';
+import * as XLSX from 'xlsx';
 
 const classes = Array.from({ length: 6 }, (_, i) => i + 1).flatMap(grade => ['A', 'B', 'C'].map(section => `${grade}${section}`));
 const genderForClass = className => className?.endsWith('B') ? 'Perempuan' : 'Laki-laki';
 
 export async function renderStudents() {
   const host = document.querySelector('#page-content');
-  host.innerHTML = `<section class="page-intro"><div><p class="eyebrow">DATA INDUK</p><h2>Data Siswa</h2><p>Tambah dan perbaiki data siswa. Riwayat siswa yang pindah tetap disimpan.</p></div><div class="intro-actions"><button class="button button-secondary" id="export-students">⇩ Ekspor Excel</button><button class="button button-primary" id="add-student">＋ Tambah siswa</button></div></section><section class="notice student-notice"><strong>Mengapa tidak ada tombol hapus?</strong><span>Data siswa dapat terhubung dengan transaksi buku dan pembayaran. Menghapus permanen berisiko merusak riwayat dan jejak audit. Untuk siswa pindah sekolah, gunakan tindakan “Pindah/keluar” agar statusnya berubah dan riwayat tetap tersimpan.</span></section><section class="panel"><div class="filter-row"><label class="search-field">⌕ <input id="student-search" placeholder="Cari nama siswa…" aria-label="Cari nama siswa" /></label><label class="select-field">Kelas<select id="class-filter"><option value="">Semua kelas</option>${classes.map(name => `<option value="${name}">${name}</option>`).join('')}</select></label><label class="select-field">Status<select id="student-status-filter"><option value="active">Siswa aktif</option><option value="inactive">Pindah/keluar/lulus</option></select></label><span class="result-count" id="student-count">Memuat…</span></div><div id="students-table"><div class="loading-row">Memuat data siswa…</div></div></section><p class="help-text" id="student-year-note">Memuat tahun ajaran aktif…</p>`;
+  host.innerHTML = `<section class="page-intro"><div><p class="eyebrow">DATA INDUK</p><h2>Data Siswa</h2><p>Tambah dan perbaiki data siswa. Riwayat siswa yang pindah tetap disimpan.</p></div><div class="intro-actions"><button class="button button-secondary" id="download-student-template">⇩ Template Impor</button><button class="button button-secondary" id="import-students">⇧ Impor CSV/Excel</button><button class="button button-secondary" id="export-students">⇩ Ekspor Excel</button><button class="button button-primary" id="add-student">＋ Tambah siswa</button></div></section><section class="notice student-notice"><strong>Mengapa tidak ada tombol hapus?</strong><span>Data siswa dapat terhubung dengan transaksi buku dan pembayaran. Menghapus permanen berisiko merusak riwayat dan jejak audit. Untuk siswa pindah sekolah, gunakan tindakan “Pindah/keluar” agar statusnya berubah dan riwayat tetap tersimpan.</span></section><section class="panel"><div class="filter-row"><label class="search-field">⌕ <input id="student-search" placeholder="Cari nama siswa…" aria-label="Cari nama siswa" /></label><label class="select-field">Kelas<select id="class-filter"><option value="">Semua kelas</option>${classes.map(name => `<option value="${name}">${name}</option>`).join('')}</select></label><label class="select-field">Status<select id="student-status-filter"><option value="active">Siswa aktif</option><option value="inactive">Pindah/keluar/lulus</option></select></label><span class="result-count" id="student-count">Memuat…</span></div><div id="students-table"><div class="loading-row">Memuat data siswa…</div></div></section><p class="help-text" id="student-year-note">Memuat tahun ajaran aktif…</p>`;
   let currentRows = [];
   let classOptions = [];
   let activeYear;
@@ -52,6 +53,8 @@ export async function renderStudents() {
     exportRowsToXlsx(currentRows.map((r, i) => ({ No: i + 1, 'Nama Siswa': r.full_name, Kelas: r.class_name, Gender: r.gender, 'Tahun Ajaran': r.academic_year, Status: r.is_active ? 'Aktif' : 'Nonaktif' })), `daftar-siswa-${(activeYear?.name || 'aktif').replace('/', '-')}.xlsx`, 'Data Siswa');
   });
   host.querySelector('#add-student').addEventListener('click', () => openAddModal({ classOptions, onSaved: load }));
+  host.querySelector('#download-student-template').addEventListener('click', downloadStudentImportTemplate);
+  host.querySelector('#import-students').addEventListener('click', () => openImportStudentsModal({ activeYear, onSaved: load }));
   host.querySelector('#students-table').addEventListener('click', async event => {
     const button = event.target.closest('[data-student-action]');
     if (!button) return;
@@ -225,6 +228,109 @@ function openReactivationModal({ row, classOptions, onSaved }) {
       }
     }
   });
+}
+
+function downloadStudentImportTemplate() {
+  const sheet = XLSX.utils.aoa_to_sheet([
+    ['full_name', 'class_name']
+  ]);
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, sheet, 'Impor Siswa');
+  XLSX.writeFile(book, 'template-impor-siswa.xlsx');
+}
+
+function openImportStudentsModal({ activeYear, onSaved }) {
+  if (!activeYear?.name) {
+    notify('Tahun ajaran aktif belum berhasil dimuat.', 'error');
+    return;
+  }
+  showModal({
+    title: 'Impor siswa secara massal',
+    body: `<div class="form-stack"><p class="muted">Impor ditujukan untuk tahun ajaran aktif <strong>${escapeHtml(activeYear.name)}</strong>. Siapkan file Excel atau CSV dengan kolom <code>full_name</code> dan <code>class_name</code>. Kolom gender tidak wajib karena ditentukan dari aturan sekolah: kelas A/C laki-laki, B perempuan.</p><label>File siswa (.xlsx, .xls, atau .csv)<input id="student-import-file" type="file" accept=".xlsx,.xls,.csv,text/csv" /></label><div class="form-note left-note">Gunakan satu baris untuk satu siswa. Contoh kelas: 1A, 1B, 2A. Jika nama sudah ada pada tahun ajaran lain, sistem akan menghentikan impor untuk pemeriksaan manual agar siswa tidak terduplikasi.</div><div id="student-import-summary" class="import-summary" aria-live="polite">Pilih file untuk melihat pratinjau.</div><div id="student-import-error" class="form-error" hidden></div></div>`,
+    actions: `<button class="button button-primary" id="submit-student-import" disabled>Impor siswa</button>`
+  });
+  const fileInput = document.querySelector('#student-import-file');
+  const summary = document.querySelector('#student-import-summary');
+  const errorBox = document.querySelector('#student-import-error');
+  const submit = document.querySelector('#submit-student-import');
+  let rowsToImport = [];
+
+  fileInput.addEventListener('change', async () => {
+    rowsToImport = [];
+    submit.disabled = true;
+    errorBox.hidden = true;
+    const file = fileInput.files?.[0];
+    if (!file) { summary.textContent = 'Pilih file untuk melihat pratinjau.'; return; }
+    summary.textContent = 'Membaca file…';
+    try {
+      const workbook = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(firstSheet, { defval: '', raw: false });
+      if (!raw.length) throw new Error('File tidak memiliki baris data. Pastikan ada baris judul kolom dan data siswa.');
+      const normalized = raw.map((original, index) => {
+        const entries = Object.entries(original).map(([key, value]) => [normalizeImportHeader(key), String(value ?? '').trim()]);
+        const record = Object.fromEntries(entries);
+        const fullName = record.fullname || record.namasiswa || record.namalengkapsiswa || record.namalengkap || '';
+        const className = (record.classname || record.kelas || '').toUpperCase().replace(/\s+/g, '');
+        const providedGender = normalizeGender(record.gender || record.jeniskelamin || '');
+        const providedYear = String(record.academicyear || '').trim();
+        const expectedGender = genderForClass(className);
+        return { rowNumber: index + 2, full_name: fullName.trim(), class_name: className, gender: expectedGender, academic_year: activeYear.name, providedGender, providedYear };
+      });
+      const problems = [];
+      const seen = new Set();
+      normalized.forEach(r => {
+        if (!r.full_name) problems.push(`Baris ${r.rowNumber}: nama siswa kosong.`);
+        if (!/^[1-6][ABC]$/.test(r.class_name)) problems.push(`Baris ${r.rowNumber}: kelas "${r.class_name}" tidak valid (contoh 1A).`);
+        if (r.providedGender && r.providedGender !== r.gender) problems.push(`Baris ${r.rowNumber}: gender tidak sesuai aturan kelas ${r.class_name}.`);
+        if (r.providedYear && r.providedYear !== activeYear.name) problems.push(`Baris ${r.rowNumber}: tahun ajaran ${r.providedYear} tidak sama dengan tahun aktif ${activeYear.name}.`);
+        const key = r.full_name.toLocaleLowerCase('id-ID');
+        if (key && seen.has(key)) problems.push(`Baris ${r.rowNumber}: nama "${r.full_name}" muncul lebih dari sekali dalam file.`);
+        if (key) seen.add(key);
+      });
+      rowsToImport = normalized.map(({ rowNumber, providedGender, providedYear, ...r }) => r);
+      if (problems.length) {
+        summary.innerHTML = `<strong>${normalized.length} baris dibaca; belum siap diimpor.</strong><ul>${problems.slice(0, 8).map(x => `<li>${escapeHtml(x)}</li>`).join('')}${problems.length > 8 ? `<li>Dan ${problems.length - 8} masalah lainnya.</li>` : ''}</ul>`;
+        submit.disabled = true;
+      } else {
+        summary.innerHTML = `<strong>${rowsToImport.length} siswa siap diimpor</strong><p>Gender akan ditetapkan otomatis berdasarkan kelas. Tahun ajaran: ${escapeHtml(activeYear.name)}.</p><p class="muted">Contoh: ${rowsToImport.slice(0, 3).map(r => `${escapeHtml(r.full_name)} (${escapeHtml(r.class_name)})`).join(', ')}</p>`;
+        submit.disabled = false;
+      }
+    } catch (error) {
+      summary.textContent = 'Gagal membaca file.';
+      errorBox.textContent = error.message || 'Format file tidak didukung.';
+      errorBox.hidden = false;
+    }
+  });
+
+  submit.addEventListener('click', async () => {
+    if (!rowsToImport.length) return;
+    if (!confirm(`Impor ${rowsToImport.length} siswa ke tahun ajaran ${activeYear.name}? Data akan diperiksa lagi oleh database.`)) return;
+    submit.disabled = true;
+    submit.textContent = 'Mengimpor…';
+    errorBox.hidden = true;
+    try {
+      const result = await importStudentsBatch(rowsToImport);
+      closeModal();
+      notify(`Impor selesai: ${result.inserted} siswa baru, ${result.skipped} sudah tercatat. Total file: ${result.total}.`, 'success');
+      await onSaved();
+    } catch (error) {
+      errorBox.textContent = error.message || 'Impor gagal.';
+      errorBox.hidden = false;
+      submit.disabled = false;
+      submit.textContent = 'Impor siswa';
+    }
+  });
+}
+
+function normalizeImportHeader(value) {
+  return String(value).trim().toLocaleLowerCase('id-ID').replace(/[^a-z0-9]/g, '');
+}
+function normalizeGender(value) {
+  const v = String(value || '').trim().toLocaleLowerCase('id-ID');
+  if (['l', 'laki-laki', 'lakilaki', 'laki laki', 'male', 'm'].includes(v)) return 'Laki-laki';
+  if (['p', 'perempuan', 'female', 'f'].includes(v)) return 'Perempuan';
+  return '';
 }
 
 function showFormError(message) {
