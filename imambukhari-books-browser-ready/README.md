@@ -28,3 +28,17 @@ Gunakan hanya publishable/anon key pada frontend. Jangan pernah memakai `service
 Database harus sudah memakai skema Supabase yang disepakati. Frontend tidak menyimpan password sendiri. Login harus menggunakan email dan password. Hak akses harus ditegakkan oleh Supabase RLS, bukan hanya dengan menyembunyikan tombol.
 
 Sebelum transaksi buku sungguhan, modul penjualan dan pembayaran masih perlu dibangun dan diuji. Jangan menganggap placeholder menu sebagai fitur yang telah selesai.
+
+## Pengelolaan siswa (pembaruan)
+
+Modul siswa mendukung tambah siswa, edit nama, mutasi antarkelas pada tingkat yang sama, menandai siswa pindah/keluar/lulus, melihat daftar nonaktif, dan mengaktifkan kembali siswa. Gender ditentukan oleh pembagian sekolah: kelas A/C = laki-laki, kelas B = perempuan. Tidak ada penghapusan permanen.
+
+Sebelum mengunggah pembaruan frontend ini, jalankan `supabase/migrations/002_student_management.sql` satu kali di Supabase SQL Editor. Migrasi 002 menambah RPC untuk pengelolaan siswa dan mempertahankan riwayat mutasi kelas. Jangan jalankan ulang migrasi 001 pada database yang sudah digunakan.
+
+### Kebijakan data siswa
+
+- Edit untuk memperbaiki nama.
+- Mutasi kelas mengakhiri pendaftaran lama dengan status `class_changed`, lalu membuat pendaftaran aktif baru. Berlaku untuk tingkat kelas yang sama.
+- Pindah/keluar/lulus menandai pendaftaran tahun ajaran aktif dan mengubah `students.is_active` menjadi false. Data siswa dan transaksi tidak dihapus.
+- Aktivasi kembali membuat pendaftaran aktif baru pada tahun ajaran aktif; alasan wajib dicatat.
+- Transaksi inventaris/penjualan/pembayaran tidak dihapus oleh modul siswa.
