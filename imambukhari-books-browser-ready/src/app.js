@@ -4,6 +4,7 @@ import { renderDashboard } from './modules/dashboard/index.js';
 import { renderStudents } from './modules/students/index.js';
 import { renderAcademicYears } from './modules/academic-years/index.js';
 import { renderBooks } from './modules/books/index.js';
+import { renderInventory } from './modules/inventory/index.js';
 import { renderPlaceholder } from './modules/placeholder.js';
 import { renderSidebar } from './components/sidebar.js';
 import { renderHeader } from './components/header.js';
@@ -69,5 +70,6 @@ async function renderPage(page) {
   if (page === 'students') return renderStudents();
   if (page === 'academic-years') return renderAcademicYears(currentProfile);
   if (page === 'books') return renderBooks();
+  if (page === 'inventory') return renderInventory();
   return renderPlaceholder(page);
 }
